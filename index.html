@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Morrison Ranch CapEx Costs</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background: #f4f5f7; color: #1a1a1a; font-size: 13px; }
+
+  /* ── Page header ── */
+  .page-header { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 18px 28px 14px; position: sticky; top: 0; z-index: 100; }
+  .page-header h1 { font-size: 18px; font-weight: 600; color: #0C447C; letter-spacing: -.3px; }
+  .page-header .sub { font-size: 12px; color: #888; margin-top: 2px; }
+
+  /* ── Toolbar ── */
+  .toolbar { display: flex; gap: 8px; align-items: center; padding: 12px 28px; background: #fff; border-bottom: 1px solid #e8e8e8; flex-wrap: wrap; }
+  .view-toggle { display: flex; border: 1px solid #d0d0d0; border-radius: 6px; overflow: hidden; }
+  .view-toggle button { font-size: 12px; padding: 5px 14px; border: none; background: transparent; color: #555; cursor: pointer; font-family: inherit; }
+  .view-toggle button:hover { background: #f0f0f0; }
+  .view-toggle button.active { background: #1E4D78; color: #fff; font-weight: 500; }
+  .btn { font-size: 12px; padding: 5px 12px; border-radius: 6px; border: 1px solid #d0d0d0; background: #fff; color: #444; cursor: pointer; font-family: inherit; }
+  .btn:hover { background: #f0f0f0; }
+  .btn-hint { font-size: 11px; color: #aaa; margin-left: 4px; }
+
+  /* ── Pivot table wrapper ── */
+  .pivot-wrapper { padding: 20px 28px; }
+  .pivot-outer { overflow-x: auto; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.08); border: 1px solid #dde; background: #fff; }
+
+  /* ── Table ── */
+  table.pv { border-collapse: collapse; font-size: 12px; min-width: 100%; }
+  table.pv th, table.pv td { padding: 5px 11px; border: 0.5px solid #e2e2e2; white-space: nowrap; }
+  table.pv td { text-align: right; }
+
+  /* Sticky first column */
+  table.pv td:first-child, table.pv th.row-hdr {
+    position: sticky; left: 0; z-index: 3;
+    text-align: left; min-width: 210px;
+    border-right: 2px solid #b8cfe0 !important;
+  }
+  table.pv td:first-child { background: #fff; font-weight: 500; color: #333; }
+
+  /* Header rows */
+  th.row-hdr     { background: #1E4D78; color: #fff; font-weight: 600; z-index: 5; }
+  th.year-hdr    { background: #2563a8; color: #fff; font-weight: 600; text-align: center; font-size: 12px; cursor: pointer; user-select: none; border-left: 2px solid #185FA5; }
+  th.year-hdr:hover { background: #1E4D78; }
+  th.qtr-hdr     { background: #e8eef5; color: #1E4D78; font-weight: 600; text-align: center; font-size: 11px; cursor: pointer; user-select: none; border-left: 2px solid #b8cfe0; }
+  th.qtr-hdr:hover { background: #d4e2ef; }
+  th.month-hdr   { background: #f5f7fa; color: #555; font-weight: 400; text-align: center; font-size: 11px; border-left: 1px solid #e0e0e0; }
+  th.ytotal-hdr  { background: #B5D4F4; color: #0C447C; font-weight: 600; text-align: center; font-size: 11px; border-left: 2px solid #185FA5; }
+  th.qtotal-hdr  { background: #eaeaea; color: #444; font-weight: 600; text-align: center; font-size: 11px; border-left: 2px solid #bbb; }
+  th.grand-hdr   { background: #042C53; color: #B5D4F4; font-weight: 600; text-align: center; font-size: 11px; border-left: 2px solid #185FA5; }
+
+  /* Data cell borders */
+  td.year-first  { border-left: 2px solid #185FA5 !important; }
+  td.qtr-first   { border-left: 2px solid #b8cfe0 !important; }
+  td.month-col   { border-left: 1px solid #e8e8e8 !important; }
+  td.ytotal-col  { border-left: 2px solid #185FA5 !important; background: #EBF3FC; font-weight: 600; color: #0C447C; }
+  td.qtotal-col  { border-left: 2px solid #bbb !important; background: #f0f0f0; font-weight: 600; color: #333; }
+  td.grand-col   { border-left: 2px solid #042C53 !important; background: #ddeeff; font-weight: 700; color: #0C447C; }
+
+  /* Row types */
+  tr.data-row:hover td { background: #f0f6ff !important; cursor: pointer; }
+  tr.data-row:hover td:first-child { background: #e8f0fc !important; }
+  tr.subtotal td { background: #ebebeb; font-weight: 600; border-top: 2px solid #aaa; color: #222; }
+  tr.subtotal td:first-child { background: #ebebeb; }
+  tr.subtotal td.ytotal-col { background: #cde0f5; }
+  tr.subtotal td.qtotal-col { background: #ddd; }
+  tr.subtotal td.grand-col  { background: #c5ddf5; }
+  tr.grpsub td { background: #FDF3E3; font-weight: 600; border-top: 2px solid #e8a030; color: #7a4010; }
+  tr.grpsub td:first-child  { background: #FDF3E3; }
+  tr.grpsub td.ytotal-col   { background: #f5c060; color: #4a2008; font-weight: 700; }
+  tr.grpsub td.qtotal-col   { background: #f5d890; color: #4a2008; }
+  tr.grpsub td.grand-col    { background: #f5c060; color: #4a2008; font-weight: 700; }
+  tr.grandtotal td { background: #042C53; color: #cce0ff; font-weight: 700; border-top: 2px solid #185FA5; }
+  tr.grandtotal td:first-child { background: #042C53; color: #cce0ff; }
+  tr.grp-header td { background: #f0ede8; color: #888; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; border-top: 1px solid #ccc; }
+  tr.grp-header td:first-child { background: #f0ede8; }
+
+  /* Striped rows */
+  tr.stripe td:not(.ytotal-col):not(.qtotal-col):not(.grand-col) { background: #fafbfd; }
+  tr.stripe td:first-child { background: #fafbfd; }
+
+  /* Value styling */
+  .v-neg  { color: #b91c1c; }
+  .v-proj { color: #b45309; font-style: italic; }
+  .v-zero { color: #ccc; }
+  .v-paid { color: #1a1a1a; }
+
+  /* Toggle arrow */
+  .toggle { display: inline-block; font-size: 9px; margin-right: 5px; transition: transform .15s; }
+  .is-collapsed .toggle { transform: rotate(-90deg); }
+
+  /* ── Drill-down overlay ── */
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 200; align-items: center; justify-content: center; }
+  .overlay.open { display: flex; }
+  .drawer { background: #fff; border-radius: 12px; width: min(720px, 96vw); max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 8px 40px rgba(0,0,0,.25); overflow: hidden; }
+  .drawer-header { padding: 18px 22px 14px; border-bottom: 1px solid #eee; flex-shrink: 0; }
+  .drawer-header h2 { font-size: 15px; font-weight: 600; color: #0C447C; }
+  .drawer-header .drawer-sub { font-size: 12px; color: #888; margin-top: 3px; }
+  .drawer-header .drawer-total { font-size: 14px; font-weight: 600; color: #1E4D78; margin-top: 8px; }
+  .drawer-close { float: right; background: none; border: none; font-size: 20px; cursor: pointer; color: #888; line-height: 1; padding: 2px 6px; border-radius: 4px; }
+  .drawer-close:hover { background: #f0f0f0; color: #333; }
+  .drawer-body { overflow-y: auto; padding: 16px 22px 20px; flex: 1; }
+  table.detail { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.detail th { text-align: left; padding: 7px 10px; color: #666; font-weight: 600; font-size: 11px; border-bottom: 2px solid #e0e0e0; background: #f8f8f8; position: sticky; top: 0; }
+  table.detail th:last-child, table.detail td:last-child { text-align: right; }
+  table.detail td { padding: 7px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+  table.detail tr:hover td { background: #f5f9ff; }
+  .badge-paid { background: #dcfce7; color: #166534; font-size: 10px; padding: 2px 7px; border-radius: 10px; white-space: nowrap; }
+  .badge-proj { background: #fef3c7; color: #92400e; font-size: 10px; padding: 2px 7px; border-radius: 10px; white-space: nowrap; }
+  .detail-neg { color: #b91c1c; font-weight: 500; }
+  .detail-pos { font-weight: 500; }
+  .empty-msg { text-align: center; color: #aaa; padding: 32px; font-size: 13px; }
+
+  /* Key */
+  .key { display: flex; gap: 20px; flex-wrap: wrap; align-items: center; padding: 10px 28px 14px; font-size: 12px; color: #666; }
+  .key strong { font-weight: 600; color: #444; margin-right: 2px; }
+  .key-lbl { font-size: 11px; font-weight: 600; color: #888; margin-right: 6px; text-transform: uppercase; letter-spacing: .05em; }
+
+  @media (max-width: 600px) {
+    .pivot-wrapper { padding: 12px; }
+    .toolbar, .key { padding-left: 12px; padding-right: 12px; }
+    .page-header { padding: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>Morrison Ranch CapEx Costs</h1>
+  <div class="sub" id="as-of">As of 03/16/2026</div>
+</div>
+
+<div class="toolbar">
+  <div class="view-toggle">
+    <button id="btn-months" class="active" onclick="setView('months',this)">Months</button>
+    <button id="btn-quarters" onclick="setView('quarters',this)">Quarters</button>
+  </div>
+  <button class="btn" onclick="expandAll()">Expand all</button>
+  <button class="btn" onclick="collapseAll()">Collapse all</button>
+  <span class="btn-hint">Click any cell to see transaction detail</span>
+</div>
+
+<div class="pivot-wrapper">
+  <div class="pivot-outer"><table class="pv" id="pv"></table></div>
+</div>
+
+<div class="key">
+  <span class="key-lbl">Key</span>
+  <span><strong style="color:#1a1a1a;">$1,234</strong> Paid</span>
+  <span><strong style="color:#b45309;font-style:italic;">$1,234</strong> Projected</span>
+  <span><strong style="color:#b91c1c;">-$1,234</strong> Negative / credit</span>
+</div>
+
+<!-- Drill-down overlay -->
+<div class="overlay" id="overlay" onclick="closeDrawer(event)">
+  <div class="drawer" onclick="event.stopPropagation()">
+    <div class="drawer-header">
+      <button class="drawer-close" onclick="closeDrawer()">&#10005;</button>
+      <h2 id="drawer-title">Transaction detail</h2>
+      <div class="drawer-sub" id="drawer-sub"></div>
+      <div class="drawer-total" id="drawer-total"></div>
+    </div>
+    <div class="drawer-body">
+      <table class="detail">
+        <thead><tr>
+          <th>Vendor</th><th>Category</th><th>Invoice date</th><th>Date paid</th><th>Status</th><th>Amount</th>
+        </tr></thead>
+        <tbody id="drawer-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Raw transaction data ────────────────────────────────────────────────────
+const RAW = [
+  {month:"2023-12",vendor:"Udall, Shumway & Lyons, P.L.C",category:"LEGAL",amount:1300,projected:false,invoice_date:"2023-12-05",date_paid:"2023-12-14"},
+  {month:"2024-01",vendor:"Arizona Commercial Signs, Inc.",category:"SIGNAGE/GRAPHICS",amount:1585,projected:false,invoice_date:"2023-12-28",date_paid:"2024-01-11"},
+  {month:"2024-03",vendor:"Udall, Shumway & Lyons, P.L.C",category:"LEGAL",amount:2103.96,projected:false,invoice_date:"2024-03-07",date_paid:"2024-03-14"},
+  {month:"2024-04",vendor:"First American Title Insurance Corp",category:"EARNEST MONEY",amount:50000,projected:false,invoice_date:"2024-04-17",date_paid:"2024-04-07"},
+  {month:"2024-06",vendor:"Udall, Shumway & Lyons, P.L.C",category:"LEGAL",amount:700,projected:false,invoice_date:"2024-05-14",date_paid:"2024-06-21"},
+  {month:"2024-06",vendor:"Udall, Shumway & Lyons, P.L.C",category:"LEGAL",amount:111.92,projected:false,invoice_date:"2024-06-17",date_paid:"2024-06-21"},
+  {month:"2024-06",vendor:"Udall, Shumway & Lyons, P.L.C",category:"LEGAL",amount:70,projected:false,invoice_date:"2024-06-17",date_paid:"2024-06-21"},
+  {month:"2024-07",vendor:"Udall, Shumway & Lyons, P.L.C",category:"LEGAL",amount:35,projected:false,invoice_date:"2024-07-17",date_paid:"2024-07-26"},
+  {month:"2024-08",vendor:"Udall, Shumway & Lyons, P.L.C",category:"LEGAL",amount:2555,projected:false,invoice_date:"2024-08-07",date_paid:"2024-08-29"},
+  {month:"2024-08",vendor:"Udall, Shumway & Lyons, P.L.C",category:"LEGAL",amount:280,projected:false,invoice_date:"2024-08-07",date_paid:"2024-08-29"},
+  {month:"2024-09",vendor:"Udall, Shumway & Lyons, P.L.C",category:"LEGAL",amount:1203.68,projected:false,invoice_date:"2024-09-16",date_paid:"2024-09-24"},
+  {month:"2024-10",vendor:"Udall, Shumway & Lyons, P.L.C",category:"LEGAL",amount:3055,projected:false,invoice_date:"2024-10-17",date_paid:"2024-10-24"},
+  {month:"2024-11",vendor:"Evolve Ventures, LLC",category:"CONSULTANTS",amount:3750,projected:false,invoice_date:"2024-10-29",date_paid:"2024-11-21"},
+  {month:"2024-11",vendor:"Udall, Shumway & Lyons, P.L.C",category:"LEGAL",amount:1692.24,projected:false,invoice_date:"2024-11-11",date_paid:"2024-11-27"},
+  {month:"2024-12",vendor:"Evolve Ventures, LLC",category:"CONSULTANTS",amount:3750,projected:false,invoice_date:"2024-12-01",date_paid:"2024-12-26"},
+  {month:"2024-12",vendor:"Udall, Shumway & Lyons, P.L.C",category:"LEGAL",amount:926.48,projected:false,invoice_date:"2024-12-06",date_paid:"2024-12-12"},
+  {month:"2025-01",vendor:"Evolve Ventures, LLC",category:"CONSULTANTS",amount:3750,projected:false,invoice_date:"2024-12-31",date_paid:"2025-01-23"},
+  {month:"2025-01",vendor:"Udall, Shumway & Lyons, P.L.C",category:"LEGAL",amount:219.29,projected:false,invoice_date:"2025-01-21",date_paid:"2025-01-30"},
+  {month:"2025-02",vendor:"Evolve Ventures, LLC",category:"CONSULTANTS",amount:3750,projected:false,invoice_date:"2025-02-01",date_paid:"2025-02-27"},
+  {month:"2025-02",vendor:"Adaptive Architects, Inc.",category:"ARCHITECH",amount:12500,projected:false,invoice_date:"2025-02-06",date_paid:"2025-02-14"},
+  {month:"2025-04",vendor:"Udall, Shumway & Lyons, P.L.C",category:"LEGAL",amount:5219.16,projected:false,invoice_date:"2025-04-17",date_paid:"2025-04-25"},
+  {month:"2025-05",vendor:"Udall, Shumway & Lyons, P.L.C",category:"LEGAL",amount:7953.06,projected:false,invoice_date:"2025-05-19",date_paid:"2025-05-23"},
+  {month:"2025-06",vendor:"Adaptive Architects, Inc.",category:"ARCHITECH",amount:10550,projected:false,invoice_date:"2025-06-03",date_paid:"2025-06-13"},
+  {month:"2025-06",vendor:"First American Title Insurance Corp",category:"EARNEST MONEY",amount:100000,projected:false,invoice_date:"2025-06-03",date_paid:"2025-06-03"},
+  {month:"2025-06",vendor:"Udall, Shumway & Lyons, P.L.C",category:"LEGAL",amount:3412.5,projected:false,invoice_date:"2025-06-12",date_paid:"2025-06-20"},
+  {month:"2025-06",vendor:"Capitalized Labor",category:"OTHER PREOPENING COSTS",amount:263.6,projected:false,invoice_date:"2025-06-30",date_paid:"2025-06-30"},
+  {month:"2025-07",vendor:"Evolve Ventures, LLC",category:"CONSULTANTS",amount:3750,projected:false,invoice_date:"2025-06-30",date_paid:"2025-07-18"},
+  {month:"2025-07",vendor:"Adaptive Architects, Inc.",category:"ARCHITECH",amount:42200,projected:false,invoice_date:"2025-07-06",date_paid:"2025-07-18"},
+  {month:"2025-07",vendor:"Udall, Shumway & Lyons, P.L.C",category:"LEGAL",amount:600,projected:false,invoice_date:"2025-07-10",date_paid:"2025-07-18"},
+  {month:"2025-07",vendor:"Capitalized Labor",category:"OTHER PREOPENING COSTS",amount:548.88,projected:false,invoice_date:"2025-07-31",date_paid:"2025-07-31"},
+  {month:"2025-08",vendor:"Evolve Ventures, LLC",category:"CONSULTANTS",amount:3750,projected:false,invoice_date:"2025-07-30",date_paid:"2025-08-21"},
+  {month:"2025-08",vendor:"Town of Gilbert",category:"PERMITS",amount:11859.65,projected:false,invoice_date:"2025-08-04",date_paid:"2025-08-04"},
+  {month:"2025-08",vendor:"Adaptive Architects, Inc.",category:"ARCHITECH",amount:53450,projected:false,invoice_date:"2025-08-05",date_paid:"2025-08-08"},
+  {month:"2025-08",vendor:"Udall, Shumway & Lyons, P.L.C",category:"LEGAL",amount:37.5,projected:false,invoice_date:"2025-08-08",date_paid:"2025-08-14"},
+  {month:"2025-08",vendor:"Capitalized Labor",category:"OTHER PREOPENING COSTS",amount:1097.75,projected:false,invoice_date:"2025-08-31",date_paid:"2025-08-31"},
+  {month:"2025-09",vendor:"Dry Utility Services",category:"UTILITIES",amount:2362.5,projected:false,invoice_date:"2025-08-18",date_paid:"2025-09-12"},
+  {month:"2025-09",vendor:"Adaptive Architects, Inc.",category:"ARCHITECT",amount:11800,projected:false,invoice_date:"2025-09-04",date_paid:"2025-09-12"},
+  {month:"2025-09",vendor:"Gila Monster Printing",category:"OTHER PREOPENING COSTS",amount:5.76,projected:false,invoice_date:"2025-09-05",date_paid:"2025-09-05"},
+  {month:"2025-09",vendor:"Udall, Shumway & Lyons, P.L.C",category:"LEGAL",amount:1429.14,projected:false,invoice_date:"2025-09-15",date_paid:"2025-09-19"},
+  {month:"2025-09",vendor:"Capitalized Labor",category:"OTHER PREOPENING COSTS",amount:2332.73,projected:false,invoice_date:"2025-09-30",date_paid:"2025-09-30"},
+  {month:"2025-10",vendor:"Evolve Ventures, LLC",category:"CONSULTANTS",amount:3750,projected:false,invoice_date:"2025-09-02",date_paid:"2025-10-10"},
+  {month:"2025-10",vendor:"Dry Utility Services",category:"UTILITIES",amount:1417.5,projected:false,invoice_date:"2025-09-12",date_paid:"2025-10-16"},
+  {month:"2025-10",vendor:"Udall, Shumway & Lyons, P.L.C",category:"LEGAL",amount:6048.12,projected:false,invoice_date:"2025-10-14",date_paid:"2025-10-24"},
+  {month:"2025-10",vendor:"Capitalized Labor",category:"OTHER PREOPENING COSTS",amount:2332.73,projected:false,invoice_date:"2025-10-31",date_paid:"2025-10-31"},
+  {month:"2025-11",vendor:"Evolve Ventures, LLC",category:"CONSULTANTS",amount:3750,projected:false,invoice_date:"2025-10-31",date_paid:"2025-11-07"},
+  {month:"2025-11",vendor:"Dry Utility Services",category:"UTILITIES",amount:3418,projected:false,invoice_date:"2025-10-17",date_paid:"2025-11-14"},
+  {month:"2025-11",vendor:"Adaptive Architects, Inc.",category:"ARCHITECT",amount:15200,projected:false,invoice_date:"2025-11-04",date_paid:"2025-11-14"},
+  {month:"2025-11",vendor:"Udall, Shumway & Lyons, P.L.C",category:"LEGAL",amount:1687.5,projected:false,invoice_date:"2025-11-13",date_paid:"2025-11-21"},
+  {month:"2025-11",vendor:"Capitalized Labor",category:"OTHER PREOPENING COSTS",amount:1833.29,projected:false,invoice_date:"2025-11-30",date_paid:"2025-11-30"},
+  {month:"2025-12",vendor:"Evolve Ventures, LLC",category:"CONSULTANTS",amount:3750,projected:false,invoice_date:"2025-10-31",date_paid:"2025-12-05"},
+  {month:"2025-12",vendor:"CSC",category:"OTHER PREOPENING COSTS",amount:163.35,projected:false,invoice_date:"2025-11-08",date_paid:"2025-12-05"},
+  {month:"2025-12",vendor:"Udall, Shumway & Lyons, P.L.C",category:"LEGAL",amount:1950,projected:false,invoice_date:"2025-12-08",date_paid:"2025-12-12"},
+  {month:"2025-12",vendor:"First American Title Insurance Corp",category:"EARNEST MONEY",amount:-38365.21,projected:false,invoice_date:"2025-12-12",date_paid:"2025-12-12"},
+  {month:"2025-12",vendor:"Capitalized Labor",category:"OTHER PREOPENING COSTS",amount:2529.8,projected:false,invoice_date:"2025-12-31",date_paid:"2025-12-31"},
+  {month:"2026-01",vendor:"A.R. Mays Construction",category:"NET PAYMENTS TO GC & STORE REIMBURSEMENTS",amount:47328.85,projected:false,invoice_date:"2025-12-31",date_paid:"2026-01-28"},
+  {month:"2026-01",vendor:"Town of Gilbert",category:"PERMITS",amount:823451.86,projected:false,invoice_date:"2026-01-06",date_paid:"2026-01-06"},
+  {month:"2026-01",vendor:"Adaptive Architects, Inc.",category:"ARCHITECT",amount:4175,projected:false,invoice_date:"2026-01-07",date_paid:"2026-01-16"},
+  {month:"2026-01",vendor:"SRP",category:"UTILITIES",amount:55418.7,projected:false,invoice_date:"2026-01-28",date_paid:"2026-01-28"},
+  {month:"2026-01",vendor:"A.R. Mays Construction",category:"NET PAYMENTS TO GC & STORE REIMBURSEMENTS",amount:425959.63,projected:false,invoice_date:"2026-01-28",date_paid:"2026-01-28"},
+  {month:"2026-01",vendor:"Capitalized Labor",category:"OTHER PREOPENING COSTS",amount:1994.78,projected:false,invoice_date:"2026-01-31",date_paid:"2026-01-31"},
+  {month:"2026-02",vendor:"Udall, Shumway & Lyons, P.L.C",category:"LEGAL",amount:6538.02,projected:false,invoice_date:"2026-01-15",date_paid:"2026-02-06"},
+  {month:"2026-02",vendor:"Hanover Insurane Co.",category:"INSURANCE",amount:4606,projected:false,invoice_date:"2026-01-19",date_paid:"2026-02-13"},
+  {month:"2026-02",vendor:"STORE Capital Corporation",category:"STORE Capital RENT PAYMENTS",amount:23290.19,projected:false,invoice_date:"2026-02-01",date_paid:"2026-02-05"},
+  {month:"2026-02",vendor:"A.R. Mays Construction",category:"NET PAYMENTS TO GC & STORE REIMBURSEMENTS",amount:425959.63,projected:false,invoice_date:"2026-02-01",date_paid:"2026-02-19"},
+  {month:"2026-02",vendor:"Adaptive Architects, Inc.",category:"ARCHITECT",amount:4175,projected:false,invoice_date:"2026-02-06",date_paid:"2026-02-13"},
+  {month:"2026-02",vendor:"Caruso Turley Scott, Inc",category:"CONSULTANTS",amount:646.93,projected:false,invoice_date:"2026-02-13",date_paid:"2026-02-19"},
+  {month:"2026-02",vendor:"Evergreen - Higley & Warner JV LLC",category:"NET PAYMENTS TO GC & STORE REIMBURSEMENTS",amount:307482.37,projected:false,invoice_date:"2026-02-19",date_paid:"2026-02-19"},
+  {month:"2026-02",vendor:"A.R. Mays Construction",category:"NET PAYMENTS TO GC & STORE REIMBURSEMENTS",amount:-138395.66,projected:false,invoice_date:"2026-02-20",date_paid:"2026-02-20"},
+  {month:"2026-02",vendor:"Evergreen - Higley & Warner JV LLC",category:"NET PAYMENTS TO GC & STORE REIMBURSEMENTS",amount:106819.63,projected:false,invoice_date:"2026-02-25",date_paid:"2026-02-27"},
+  {month:"2026-02",vendor:"Capitalized Labor",category:"OTHER PREOPENING COSTS",amount:2388.49,projected:false,invoice_date:"2026-02-28",date_paid:"2026-02-28"},
+  {month:"2026-03",vendor:"UES Professional Solutions 30, LLC",category:"CONSULTANTS",amount:2890,projected:true,invoice_date:"2026-02-28",date_paid:null},
+  {month:"2026-03",vendor:"Evergreen - Higley & Warner JV LLC",category:"NET PAYMENTS TO GC & STORE REIMBURSEMENTS",amount:225957.2,projected:false,invoice_date:"2026-02-28",date_paid:"2026-03-13"},
+  {month:"2026-03",vendor:"Dry Utility Services",category:"UTILITIES",amount:2362,projected:false,invoice_date:"2025-12-12",date_paid:"2026-03-06"},
+  {month:"2026-03",vendor:"STORE Capital Corporation",category:"STORE Capital RENT PAYMENTS",amount:20293.94,projected:false,invoice_date:"2026-03-01",date_paid:"2026-03-02"},
+  {month:"2026-03",vendor:"Adaptive Architects, Inc.",category:"ARCHITECT",amount:4175,projected:false,invoice_date:"2026-03-08",date_paid:"2026-03-13"},
+  {month:"2026-04",vendor:"Dry Utility Services",category:"UTILITIES",amount:1890,projected:true,invoice_date:"2026-03-11",date_paid:null},
+  {month:"2026-04",vendor:"Caruso Turley Scott, Inc",category:"CONSULTANTS",amount:3406.98,projected:true,invoice_date:"2026-03-13",date_paid:null},
+];
+
+const normCat = c => { const u=c.toUpperCase(); return (u==='ARCHITECH'||u==='ARCHITECT')?'ARCHITECT':c; };
+const rows = RAW.map(r=>({...r, category: normCat(r.category)}));
+
+const GC_CAT      = "NET PAYMENTS TO GC & STORE REIMBURSEMENTS";
+const STORE_CAT   = "STORE Capital RENT PAYMENTS";
+const GROUPED     = new Set([GC_CAT, STORE_CAT]);
+const GC_LABEL    = "Net Payments to GC & STORE Reimbursements";
+const STORE_LABEL = "STORE Capital Rent Payments";
+const GRPSUB_LBL  = "Construction & Lease Subtotal";
+const MNAMES      = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const QTR         = m => 'Q'+Math.ceil(+m.split('-')[1]/3);
+
+const fmt = v => {
+  if (v===0||v===null||v===undefined) return '—';
+  const abs=Math.abs(v);
+  let s = abs>=1e6?'$'+(abs/1e6).toFixed(2)+'M' : abs>=1000?'$'+Math.round(abs).toLocaleString() : '$'+abs.toFixed(2);
+  return v<0?'-'+s:s;
+};
+const fmtFull = v => {
+  if (!v&&v!==0) return '—';
+  const abs=Math.abs(v);
+  const s = '$'+abs.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  return v<0?'-'+s:s;
+};
+const mLabel = m => MNAMES[+m.split('-')[1]-1];
+const mLabelFull = m => { const [y,mo]=m.split('-'); return MNAMES[+mo-1]+' '+y; };
+
+const months   = [...new Set(rows.map(r=>r.month))].sort();
+const years    = [...new Set(months.map(m=>m.split('-')[0]))].sort();
+const allCats  = [...new Set(rows.map(r=>r.category))].sort();
+const mainCats = allCats.filter(c=>!GROUPED.has(c));
+
+// Aggregate
+const agg = {};
+rows.forEach(r=>{
+  const k=r.month+'|'+r.category;
+  if(!agg[k]) agg[k]={paid:0,proj:0};
+  if(r.projected) agg[k].proj+=r.amount; else agg[k].paid+=r.amount;
+});
+
+const sumCatMs = (cat,ms) => {
+  let paid=0,proj=0;
+  ms.forEach(m=>{ const d=agg[m+'|'+cat]||{paid:0,proj:0}; paid+=d.paid; proj+=d.proj; });
+  return {paid,proj};
+};
+const sumFilterMs = (filterFn, ms) => {
+  let paid=0,proj=0;
+  rows.filter(r=>ms.includes(r.month)&&filterFn(r)).forEach(r=>{ if(r.projected) proj+=r.amount; else paid+=r.amount; });
+  return {paid,proj};
+};
+
+const getQtrs  = yr=>[...new Set(months.filter(m=>m.startsWith(yr)).map(QTR))].sort();
+const getQMths = (yr,q)=>months.filter(m=>m.startsWith(yr)&&QTR(m)===q);
+
+const collapsedYears={}, collapsedQtrs={};
+years.forEach(y=>collapsedYears[y]=false);
+months.forEach(m=>{ collapsedQtrs[m.split('-')[0]+'|'+QTR(m)]=false; });
+
+let viewMode='months';
+
+// ── Cell renderer ────────────────────────────────────────────────────────────
+const cellHtml = (paid,proj) => {
+  if(paid===0&&proj===0) return '<span class="v-zero">—</span>';
+  if(paid!==0&&proj===0) return `<span class="${paid<0?'v-neg':'v-paid'}">${fmt(paid)}</span>`;
+  if(paid===0&&proj!==0) return `<span class="v-proj">${fmt(proj)}</span>`;
+  return `<span class="${paid<0?'v-neg':'v-paid'}">${fmt(paid)}</span><br><span class="v-proj" style="font-size:10px;">${fmt(proj)}</span>`;
+};
+
+// ── Build table ───────────────────────────────────────────────────────────────
+function buildTable() {
+  const qOnly = viewMode==='quarters';
+  const tbl = document.getElementById('pv');
+  const hdrRows = qOnly?2:3;
+
+  // Compute visible columns
+  const visCols = [];
+  years.forEach(yr=>{
+    if(collapsedYears[yr]){ visCols.push({type:'ytotal',yr,q:null,m:null}); return; }
+    getQtrs(yr).forEach(q=>{
+      const k=yr+'|'+q;
+      if(!qOnly){
+        if(collapsedQtrs[k]){ visCols.push({type:'qtotal',yr,q,m:null}); return; }
+        getQMths(yr,q).forEach(m=>visCols.push({type:'month',yr,q,m}));
+      }
+      visCols.push({type:'qtotal',yr,q,m:null});
+    });
+    visCols.push({type:'ytotal',yr,q:null,m:null});
+  });
+  visCols.push({type:'grand',yr:null,q:null,m:null});
+
+  // ── THEAD ────────────────────────────────────────────────────────────────
+  let h='<thead>';
+
+  // Row 1: years
+  h+=`<tr><th class="row-hdr" rowspan="${hdrRows}">Category</th>`;
+  years.forEach(yr=>{
+    const isYC=collapsedYears[yr];
+    const span=visCols.filter(c=>c.yr===yr).length;
+    h+=`<th class="year-hdr${isYC?' is-collapsed':''}" colspan="${span||1}" data-yr="${yr}"><span class="toggle">&#9660;</span>${yr}</th>`;
+  });
+  h+='<th class="grand-hdr" rowspan="'+hdrRows+'">Grand<br>total</th></tr>';
+
+  if(!qOnly){
+    // Row 2: quarters
+    h+='<tr>';
+    years.forEach(yr=>{
+      if(collapsedYears[yr]) return;
+      getQtrs(yr).forEach(q=>{
+        const k=yr+'|'+q; const isQC=collapsedQtrs[k];
+        const span=isQC?1:getQMths(yr,q).length+1;
+        h+=`<th class="qtr-hdr${isQC?' is-collapsed':''}" colspan="${span}" data-yr="${yr}" data-q="${q}"><span class="toggle">&#9660;</span>${q}</th>`;
+      });
+      h+=`<th class="ytotal-hdr">${yr} total</th>`;
+    });
+    h+='</tr>';
+    // Row 3: months
+    h+='<tr>';
+    years.forEach(yr=>{
+      if(collapsedYears[yr]) return;
+      getQtrs(yr).forEach(q=>{
+        const k=yr+'|'+q; if(collapsedQtrs[k]) return;
+        getQMths(yr,q).forEach(m=>h+=`<th class="month-hdr">${mLabel(m)}</th>`);
+        h+=`<th class="qtotal-hdr">${q} total</th>`;
+      });
+      h+=`<th class="ytotal-hdr"></th>`;
+    });
+    h+='</tr>';
+  } else {
+    // Row 2 (quarters only): quarter labels
+    h+='<tr>';
+    years.forEach(yr=>{
+      if(collapsedYears[yr]) return;
+      getQtrs(yr).forEach(q=>h+=`<th class="qtotal-hdr" style="border-left:2px solid #bbb;">${q}</th>`);
+      h+=`<th class="ytotal-hdr">${yr} total</th>`;
+    });
+    h+='</tr>';
+  }
+  h+='</thead>';
+
+  // ── TBODY ────────────────────────────────────────────────────────────────
+  const getCatMs = (cat,col) => {
+    let ms;
+    if(col.type==='month') ms=[col.m];
+    else if(col.type==='qtotal') ms=getQMths(col.yr,col.q);
+    else if(col.type==='ytotal') ms=months.filter(m=>m.startsWith(col.yr));
+    else ms=months;
+    return sumCatMs(cat,ms);
+  };
+  const getFilterMs = (fn,col) => {
+    let ms;
+    if(col.type==='month') ms=[col.m];
+    else if(col.type==='qtotal') ms=getQMths(col.yr,col.q);
+    else if(col.type==='ytotal') ms=months.filter(m=>m.startsWith(col.yr));
+    else ms=months;
+    return sumFilterMs(fn,ms);
+  };
+
+  const colCls = (col,isFirst) => {
+    if(col.type==='grand') return 'grand-col';
+    if(col.type==='ytotal') return 'ytotal-col';
+    if(col.type==='qtotal') return 'qtotal-col';
+    if(isFirst||col.type==='month') {
+      // first month in a year or first qtr
+      const prevIdx = visCols.indexOf(col)-1;
+      if(prevIdx<0) return 'year-first';
+      const prev=visCols[prevIdx];
+      if(!prev||prev.yr!==col.yr) return 'year-first';
+      if(prev.yr===col.yr&&prev.q!==col.q) return 'qtr-first';
+      return 'month-col';
+    }
+    return '';
+  };
+
+  const makeDataRow = (label, catOrFn, rowClass, stripe, drillCats, drillMs) => {
+    const isSubRow = rowClass==='subtotal'||rowClass==='grpsub'||rowClass==='grandtotal';
+    const isCat = typeof catOrFn==='string';
+    let row = `<tr class="${rowClass||'data-row'}${stripe&&!isSubRow?' stripe':''}">`;
+    // Label cell with drill data
+    const drillData = JSON.stringify({cats: drillCats||[], months: drillMs||[]}).replace(/"/g,'&quot;');
+    if(!isSubRow){
+      row+=`<td onclick='openDrawer(${drillData},"${label.replace(/'/g,'\\\'').replace(/&amp;/g,'&')}")' style="cursor:pointer;" title="Click to see transactions">${label} <span style="color:#aaa;font-size:10px;">&#9654;</span></td>`;
+    } else {
+      row+=`<td>${label}</td>`;
+    }
+    let firstData=true;
+    visCols.forEach((col,i)=>{
+      if(col.type==='grand') return; // handled after
+      const {paid,proj} = isCat ? getCatMs(catOrFn,col) : getFilterMs(catOrFn,col);
+      const cc = colCls(col,firstData); firstData=false;
+      // For data rows, make cell clickable for drill-down
+      let colMs;
+      if(col.type==='month') colMs=[col.m];
+      else if(col.type==='qtotal') colMs=getQMths(col.yr,col.q);
+      else if(col.type==='ytotal') colMs=months.filter(m=>m.startsWith(col.yr));
+      const cellDrillData = JSON.stringify({cats: drillCats||[], months: colMs||[]}).replace(/"/g,'&quot;');
+      const clickable = !isSubRow&&(paid!==0||proj!==0);
+      row+=`<td class="${cc}"${clickable?` onclick='openDrawer(${cellDrillData},"${label.replace(/'/g,'\\\'').replace(/&amp;/g,'&')}")' style="cursor:pointer;"`:''}>`;
+      row+=cellHtml(paid,proj)+'</td>';
+    });
+    // Grand col
+    const {paid:gp,proj:gpr} = isCat ? getCatMs(catOrFn,{type:'grand'}) : getFilterMs(catOrFn,{type:'grand'});
+    const grandMs = months;
+    const grandDrill = JSON.stringify({cats: drillCats||[], months: grandMs}).replace(/"/g,'&quot;');
+    const clickableGrand = !isSubRow&&(gp!==0||gpr!==0);
+    row+=`<td class="grand-col"${clickableGrand?` onclick='openDrawer(${grandDrill},"${label.replace(/'/g,'\\\'').replace(/&amp;/g,'&')}")' style="cursor:pointer;"`:''}>`;
+    row+=cellHtml(gp,gpr)+'</td>';
+    row+='</tr>';
+    return row;
+  };
+
+  const totalCols = visCols.length;
+  let b='<tbody>';
+  let stripe=false;
+  mainCats.forEach(cat=>{
+    const has=months.some(m=>{const d=agg[m+'|'+cat];return d&&(d.paid||d.proj);});
+    if(!has) return;
+    b+=makeDataRow(cat, cat, '', stripe, [cat], months);
+    stripe=!stripe;
+  });
+  b+=makeDataRow('Subtotal', r=>!GROUPED.has(r.category), 'subtotal', false, mainCats, months);
+  b+=`<tr class="grp-header"><td colspan="${totalCols+1}">Construction &amp; Lease Payments</td></tr>`;
+  b+=makeDataRow(GC_LABEL, GC_CAT, '', false, [GC_CAT], months);
+  b+=makeDataRow(STORE_LABEL, STORE_CAT, '', true, [STORE_CAT], months);
+  b+=makeDataRow(GRPSUB_LBL, r=>GROUPED.has(r.category), 'grpsub', false, [GC_CAT, STORE_CAT], months);
+  b+=makeDataRow('Grand Total', ()=>true, 'grandtotal', false, allCats, months);
+  b+='</tbody>';
+
+  tbl.innerHTML = h+b;
+
+  // Attach year/quarter collapse listeners
+  tbl.querySelectorAll('th.year-hdr').forEach(th=>{
+    th.addEventListener('click',()=>{ collapsedYears[th.dataset.yr]=!collapsedYears[th.dataset.yr]; buildTable(); });
+  });
+  tbl.querySelectorAll('th.qtr-hdr').forEach(th=>{
+    th.addEventListener('click',()=>{ const k=th.dataset.yr+'|'+th.dataset.q; collapsedQtrs[k]=!collapsedQtrs[k]; buildTable(); });
+  });
+}
+
+// ── Drill-down drawer ─────────────────────────────────────────────────────────
+function openDrawer(drillData, label) {
+  const {cats, months: ms} = drillData;
+  const catSet = new Set(cats.map(c=>normCat(c)));
+  const msSet  = new Set(ms);
+
+  const matching = rows.filter(r=>catSet.has(r.category)&&msSet.has(r.month));
+  if(!matching.length) return;
+
+  const total = matching.reduce((s,r)=>s+r.amount, 0);
+  const periodLabel = ms.length===1 ? mLabelFull(ms[0]) : ms.length<=3 ? ms.map(mLabelFull).join(', ') : mLabelFull(ms[0])+' – '+mLabelFull(ms[ms.length-1]);
+
+  document.getElementById('drawer-title').textContent = label;
+  document.getElementById('drawer-sub').textContent = periodLabel;
+  document.getElementById('drawer-total').textContent = 'Total: ' + fmtFull(total);
+
+  const tbody = document.getElementById('drawer-body');
+  if(!matching.length){
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-msg">No transactions found</td></tr>';
+  } else {
+    const sorted = [...matching].sort((a,b)=>a.month.localeCompare(b.month));
+    tbody.innerHTML = sorted.map(r=>{
+      const badge = r.projected
+        ? '<span class="badge-proj">Projected</span>'
+        : '<span class="badge-paid">Paid</span>';
+      const amtCls = r.amount<0?'detail-neg':'detail-pos';
+      const datePaid = r.date_paid || '—';
+      return `<tr>
+        <td>${r.vendor}</td>
+        <td style="color:#666;">${r.category}</td>
+        <td style="color:#666;">${r.invoice_date}</td>
+        <td style="color:#666;">${datePaid}</td>
+        <td>${badge}</td>
+        <td class="${amtCls}">${fmtFull(r.amount)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  document.getElementById('overlay').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+
+function closeDrawer(e) {
+  if(e&&e.target!==document.getElementById('overlay')&&e.type==='click') return;
+  document.getElementById('overlay').classList.remove('open');
+  document.body.style.overflow='';
+}
+
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeDrawer(); });
+
+function setView(mode, btn) {
+  viewMode=mode;
+  document.querySelectorAll('.view-toggle button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  buildTable();
+}
+function expandAll()  { years.forEach(y=>{ collapsedYears[y]=false; Object.keys(collapsedQtrs).filter(k=>k.startsWith(y)).forEach(k=>collapsedQtrs[k]=false); }); buildTable(); }
+function collapseAll(){ years.forEach(y=>{ collapsedYears[y]=true;  Object.keys(collapsedQtrs).filter(k=>k.startsWith(y)).forEach(k=>collapsedQtrs[k]=true);  }); buildTable(); }
+
+buildTable();
+</script>
+</body>
+</html>
